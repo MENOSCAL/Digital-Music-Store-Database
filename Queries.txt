@@ -1,0 +1,99 @@
+/* Query 1 */
+WITH Genre_Track_Album AS (
+SELECT t.AlbumId, count(*) Songs
+FROM Genre g
+JOIN Track t
+ON g.GenreId = t.GenreId AND g.Name = 'Rock'
+JOIN Album a
+ON t.AlbumId = a.AlbumId
+GROUP BY a.ArtistId)
+SELECT a.ArtistId, a.Name Artist, gta.Songs NumberSongs
+FROM Genre_Track_Album gta
+JOIN Album al
+ON gta.AlbumId = al.AlbumId
+JOIN Artist a
+ON al.ArtistId = a.ArtistId
+ORDER BY 3 DESC
+LIMIT 10
+
+/* Query 2 */
+WITH InvoiceLine_Track_Album AS (
+SELECT al.ArtistId, SUM(il.UnitPrice * il.Quantity)
+FROM InvoiceLine il
+JOIN Track t
+ON il.TrackId = t.TrackId
+JOIN Album al
+ON t.AlbumId = al.AlbumId
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 1),
+Album_Track_InvoiceLine AS (
+SELECT a.ArtistId, i.CustomerId, il.InvoiceId, il.UnitPrice, il.Quantity
+FROM InvoiceLine_Track_Album ita
+JOIN Album a
+ON ita.ArtistId = a.ArtistId
+JOIN Track t
+ON a.AlbumId = t.AlbumId
+JOIN InvoiceLine il
+ON t.TrackId = il.TrackId
+JOIN Invoice i
+ON il.InvoiceId = i.InvoiceId),
+Invoice_Filter AS (
+SELECT i.CustomerId, SUM(ati.UnitPrice * ati.Quantity) AmountSpent
+FROM Invoice i
+JOIN Album_Track_InvoiceLine ati
+ON i.InvoiceId = ati.InvoiceId
+GROUP BY 1)
+SELECT DISTINCT (c.FirstName || " " || c.LastName) AS FullName, a.Name Artist, (c.FirstName || " " || SUBSTR(c.LastName, 1, 1) || ".") AS Name, 
+ifl.AmountSpent
+FROM Invoice_Filter ifl
+JOIN Customer c
+ON ifl.CustomerId = c.CustomerId
+JOIN Album_Track_InvoiceLine ati
+ON c.CustomerId = ati.CustomerId
+JOIN Artist a
+ON ati.ArtistId = a.ArtistId
+ORDER BY 4 DESC
+
+/* Query 3 */
+WITH Track_InvoiceLine_Customer AS (
+SELECT c.Country, t.GenreId, COUNT(*) OrderXcountry_genre
+FROM Track t
+JOIN InvoiceLine il
+ON t.TrackId = il.TrackId
+JOIN Invoice i
+ON il.InvoiceId = i.InvoiceId
+JOIN Customer c
+ON i.CustomerId = c.CustomerId
+GROUP BY 1, 2),
+MaxOrder AS (
+SELECT tic.Country, MAX(tic.OrderXcountry_genre) MaxOrderXcountry
+FROM Track_InvoiceLine_Customer tic
+GROUP BY 1)
+SELECT g.Name Genre, tic.Country, tic.OrderXcountry_genre Purchases
+FROM Track_InvoiceLine_Customer tic
+JOIN MaxOrder m
+ON tic.Country = m.Country AND tic.OrderXcountry_genre = m.MaxOrderXcountry
+JOIN Genre g
+ON tic.GenreId = g.GenreId
+ORDER BY 3 DESC
+
+/* Query 4 */
+WITH Invoice_Customer AS (
+SELECT c.Country, c.CustomerId, SUM(i.Total) TotalXcountry_customer
+FROM Invoice i
+JOIN Customer c
+ON i.CustomerId = c.CustomerId
+GROUP BY 1, 2),
+MaxTotal AS (
+SELECT ic.Country, MAX(ic.TotalXcountry_customer) MaxTotalXcountry
+FROM Invoice_Customer ic
+GROUP BY 1)
+SELECT (c.FirstName || " " || c.LastName) AS FullName, (c.FirstName || " " || SUBSTR(c.LastName, 1, 1) || ".") AS Name, 
+ic.Country, ic.TotalXcountry_customer TotalSpent
+FROM Invoice_Customer ic
+JOIN MaxTotal m
+ON ic.Country = m.Country AND ic.TotalXcountry_customer = m.MaxTotalXcountry
+JOIN Customer c
+ON ic.CustomerId = c.CustomerId
+ORDER BY 4 DESC
